@@ -358,7 +358,7 @@ table.log > tbody > tr.detail-row > td { background: var(--surface2); padding: 1
   <header class="top">
     <div>
       <h1>プレイ履歴</h1>
-      <div class="generated">作成: 2026-11-16 08:51:42</div>
+      <div class="generated">作成: 2026-11-16 18:30:45</div>
     </div>
     <button type="button" class="btn" id="themeBtn">テーマ: 自動</button>
   </header>
@@ -382,6 +382,9 @@ table.log > tbody > tr.detail-row > td { background: var(--surface2); padding: 1
     </div>
     <div class="toggles">
       <button type="button" class="tg" id="tgUp">自己ベスト更新のみ</button>
+      <button type="button" class="tg" id="tgScoreUp">スコア更新のみ</button>
+      <button type="button" class="tg" id="tgLampUp">ランプ更新のみ</button>
+      <button type="button" class="tg" id="tgMissUp">ミス更新のみ</button>
       <button type="button" class="tg" id="tgFirst">初プレイのみ</button>
       <button type="button" class="tg chartf" id="tgChart" hidden></button>
       <span class="fspacer"></span>
@@ -539,16 +542,25 @@ table.log > tbody > tr.detail-row > td { background: var(--surface2); padding: 1
     fillSelect('fDj', djs);
   })();
 
-  var toggles = { up: false, first: false };
-  function setToggle(id, key) {
-    $(id).addEventListener('click', function () {
-      toggles[key] = !toggles[key];
-      $(id).classList.toggle('on', toggles[key]);
+  // 絞り込みのボタン。複数を押したときは「すべてに当てはまるもの」に絞り込む
+  // (例: スコア更新 と ランプ更新 を両方押すと、両方を同時に更新したプレー)。
+  // 「自己ベスト更新のみ」は、スコア/ランプ/ミスのどれか1つでも更新したプレー。
+  var TOGGLES = [
+    { id: 'tgUp',      key: 'up',      test: function (r) { return r.anyUp; } },
+    { id: 'tgScoreUp', key: 'scoreUp', test: function (r) { return r.scoreUp; } },
+    { id: 'tgLampUp',  key: 'lampUp',  test: function (r) { return r.lampUp; } },
+    { id: 'tgMissUp',  key: 'missUp',  test: function (r) { return r.missUp; } },
+    { id: 'tgFirst',   key: 'first',   test: function (r) { return r.first; } }
+  ];
+  var toggles = {};
+  TOGGLES.forEach(function (t) {
+    toggles[t.key] = false;
+    $(t.id).addEventListener('click', function () {
+      toggles[t.key] = !toggles[t.key];
+      $(t.id).classList.toggle('on', toggles[t.key]);
       refresh();
     });
-  }
-  setToggle('tgUp', 'up');
-  setToggle('tgFirst', 'first');
+  });
 
   ['fTitle', 'fArtist'].forEach(function (id) { $(id).addEventListener('input', refresh); });
   ['fDifficulty', 'fLevel', 'fClear', 'fDj'].forEach(function (id) { $(id).addEventListener('change', refresh); });
@@ -556,8 +568,7 @@ table.log > tbody > tr.detail-row > td { background: var(--surface2); padding: 1
   $('resetBtn').addEventListener('click', function () {
     ['fTitle', 'fArtist'].forEach(function (id) { $(id).value = ''; });
     ['fDifficulty', 'fLevel', 'fClear', 'fDj'].forEach(function (id) { $(id).value = ''; });
-    toggles.up = false; toggles.first = false;
-    $('tgUp').classList.remove('on'); $('tgFirst').classList.remove('on');
+    TOGGLES.forEach(function (t) { toggles[t.key] = false; $(t.id).classList.remove('on'); });
     state.chart = null;
     refresh();
   });
@@ -956,8 +967,9 @@ table.log > tbody > tr.detail-row > td { background: var(--surface2); padding: 1
     filtered = baseRows.filter(function (r) {
       if (clear !== '' && (r.clearUnsure || r.clear !== clear)) { return false; }
       if (dj !== '' && r.dj !== dj) { return false; }
-      if (toggles.up && !r.anyUp) { return false; }
-      if (toggles.first && !r.first) { return false; }
+      for (var i = 0; i < TOGGLES.length; i++) {
+        if (toggles[TOGGLES[i].key] && !TOGGLES[i].test(r)) { return false; }
+      }
       if (state.chart) {
         var c = r.key ? charts[r.key] : null;
         if (!c || c.level !== state.chart.level) { return false; }
